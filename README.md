@@ -33,7 +33,5 @@ folder-organizer/
 ├── app.py
 ├── main.py
 ├── config.py
-├── requirements.txt
-├── BUILD_EXE_ONEFILE.bat
-└── BUILD_EXE_ONEDIR.bat
+└── requirements.txt
 ```
