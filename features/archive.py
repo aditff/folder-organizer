@@ -34,17 +34,30 @@ def safe_extract_zip(archive_path, destination, log):
             log(f"   ↳ [membongkar] {info.filename}")
 
 def safe_extract_rar(archive_path, destination, log):
-    if not HAS_RARFILE:
-        raise RuntimeError("Library rarfile belum terpasang. Jalankan: pip install rarfile")
-    if UNRAR_EXE:
-        rarfile.UNRAR_TOOL = UNRAR_EXE
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
-    with rarfile.RarFile(archive_path, "r") as archive:
-        for info in archive.infolist():
-            _safe_member_path(destination, info.filename)
-            archive.extract(info, destination)
-            log(f"   ↳ [membongkar rar] {info.filename}")
+    
+    # Coba gunakan WinRAR GUI jika terinstal
+    if WINRAR_EXE and Path(WINRAR_EXE).exists():
+        log(f"   ↳ [membuka WinRAR] Mengekstrak arsip {Path(archive_path).name}...")
+        subprocess.run(
+            [WINRAR_EXE, "x", "-y", str(archive_path), str(destination) + "\\"],
+            check=True
+        )
+        log(f"   ↳ [sukses rar] Ekstrak arsip RAR via WinRAR selesai")
+    else:
+        # Fallback menggunakan library python rarfile jika WinRAR tidak ada
+        if not HAS_RARFILE:
+            raise RuntimeError("WinRAR tidak ditemukan dan library 'rarfile' belum terpasang. Jalankan: pip install rarfile")
+        if UNRAR_EXE:
+            rarfile.UNRAR_TOOL = UNRAR_EXE
+            
+        log(f"   ↳ [membongkar rar (Python)] {Path(archive_path).name}")
+        with rarfile.RarFile(archive_path, "r") as archive:
+            for info in archive.infolist():
+                _safe_member_path(destination, info.filename)
+                archive.extract(info, destination)
+                log(f"   ↳ [membongkar] {info.filename}")
 
 def _flatten_single_folder(destination_path, log):
     dest = Path(destination_path)
@@ -91,7 +104,10 @@ def extract_archives(root_dir, extract_mode, log):
                 if suffix in (".zip", ".rar"):
                     found_archives.append(archive_path)
 
+        # Jika di awal loop pertama sama sekali tidak ada arsip yang ditemukan
         if not found_archives:
+            if loop_count == 1:
+                log("[info] Tidak ada folder terkompresi, proses ekstraksi selesai.")
             break
 
         extracted_any = False
@@ -124,7 +140,8 @@ def extract_archives(root_dir, extract_mode, log):
         if not extracted_any:
             break
 
-    log(f"[info] Proses ekstrak selesai.")
+    if total_extracted_count > 0:
+        log(f"[info] Proses ekstrak selesai.")
 
 def compress_main_folder(folder_path, output_format, log):
     folder = Path(folder_path)
@@ -145,20 +162,19 @@ def compress_main_folder(folder_path, output_format, log):
                         archive.write(full_path, rel_path)
                         log(f"   ↳ [memasukkan] {rel_path}")
         elif output_format == ".rar":
-            if not WINRAR_EXE:
-                raise RuntimeError("WinRAR.exe tidak ditemukan. Instal WinRAR atau pilih ZIP.")
-            
             parent_dir = folder.parent
             folder_name = folder.name
             
-            log(f"   ↳ [menjalankan WinRAR] Mengemas folder {folder_name}...")
-            subprocess.run(
-                [WINRAR_EXE, "a", "-ibck", "-r", str(archive_path), folder_name],
-                cwd=str(parent_dir),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
+            # Cek apakah WinRAR tersedia untuk kompresi .rar
+            if WINRAR_EXE and Path(WINRAR_EXE).exists():
+                log(f"   ↳ [membuka WinRAR] Mengemas folder {folder_name}...")
+                subprocess.run(
+                    [WINRAR_EXE, "a", "-r", str(archive_path), folder_name],
+                    cwd=str(parent_dir),
+                    check=True,
+                )
+            else:
+                raise RuntimeError("WinRAR.exe tidak ditemukan di komputer ini. Format .rar memerlukan WinRAR, atau silakan pilih format ZIP.")
         else:
             raise ValueError("Format arsip tidak didukung.")
 
@@ -195,7 +211,7 @@ def compress_folders_by_depth(root_dir, output_format, level_option, log):
             except OSError as exc:
                 log(f"[peringatan] Gagal menghapus folder utama: {exc}")
         else:
-                log("[info] Tidak ada file yang terkompresi.")
+            log("[info] Tidak ada file yang terkompresi.")
         return False
 
     folders_to_compress = []
