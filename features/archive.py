@@ -74,6 +74,7 @@ def extract_archives(root_dir, extract_mode, log):
 
     max_loops = 20
     loop_count = 0
+    total_extracted_count = 0
 
     while loop_count < max_loops:
         loop_count += 1
@@ -115,12 +116,15 @@ def extract_archives(root_dir, extract_mode, log):
                 
                 archive_path.unlink()
                 extracted_any = True
+                total_extracted_count += 1
                 log(f"[sukses] Arsip diekstrak & dihapus ➔ {destination.name}")
             except Exception as exc:
                 log(f"[gagal ekstrak] {archive_path.name}: {exc}")
 
         if not extracted_any:
             break
+
+    log(f"[info] Proses ekstrak selesai.")
 
 def compress_main_folder(folder_path, output_format, log):
     folder = Path(folder_path)
@@ -149,7 +153,7 @@ def compress_main_folder(folder_path, output_format, log):
             
             log(f"   ↳ [menjalankan WinRAR] Mengemas folder {folder_name}...")
             subprocess.run(
-                [WINRAR_EXE, "a", "-r", str(archive_path), folder_name],
+                [WINRAR_EXE, "a", "-ibck", "-r", str(archive_path), folder_name],
                 cwd=str(parent_dir),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -190,6 +194,8 @@ def compress_folders_by_depth(root_dir, output_format, level_option, log):
                 return True
             except OSError as exc:
                 log(f"[peringatan] Gagal menghapus folder utama: {exc}")
+        else:
+                log("[info] Tidak ada file yang terkompresi.")
         return False
 
     folders_to_compress = []
@@ -205,7 +211,7 @@ def compress_folders_by_depth(root_dir, output_format, level_option, log):
             continue
 
     if not folders_to_compress:
-        log(f"[info] Tidak ditemukan folder pada level kedalaman yang dipilih di dalam {root.name}")
+        log(f"[info] Tidak ada file yang terkompresi (tidak ditemukan folder pada level kedalaman yang dipilih di dalam {root.name}).")
         return False
 
     success_count = 0
@@ -220,4 +226,8 @@ def compress_folders_by_depth(root_dir, output_format, level_option, log):
             except OSError as exc:
                 log(f"[peringatan] Gagal menghapus folder {folder_path.name}: {exc}")
 
-    (success_count > 0)
+    if success_count == 0:
+        log("[info] Tidak ada file yang terkompresi.")
+        return False
+
+    return success_count > 0
